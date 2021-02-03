@@ -261,12 +261,18 @@ public class ConfigurationClassPostProcessor implements BeanDefinitionRegistryPo
 					logger.debug("Bean definition has already been processed as a configuration class: " + beanDef);
 				}
 			}
+			/*
+				检查 bd 是否是一个配置类：
+				1. 被 @Configuration 注解											标记为 full
+				2. 被 @Component @ComponentScan @Import @ImportResource 注解         标记为 lite
+			 */
 			else if (ConfigurationClassUtils.checkConfigurationClassCandidate(beanDef, this.metadataReaderFactory)) {
 				configCandidates.add(new BeanDefinitionHolder(beanDef, beanName));
 			}
 		}
 
 		// Return immediately if no @Configuration classes were found
+		// 如果没有发现添加上面那几个注释的类，则直接返回
 		if (configCandidates.isEmpty()) {
 			return;
 		}
@@ -304,6 +310,7 @@ public class ConfigurationClassPostProcessor implements BeanDefinitionRegistryPo
 		Set<BeanDefinitionHolder> candidates = new LinkedHashSet<>(configCandidates);
 		Set<ConfigurationClass> alreadyParsed = new HashSet<>(configCandidates.size());
 		do {
+			// 解析每一个 配置类
 			parser.parse(candidates);
 			parser.validate();
 

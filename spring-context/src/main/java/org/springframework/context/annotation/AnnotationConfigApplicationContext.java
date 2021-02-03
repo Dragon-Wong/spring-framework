@@ -117,7 +117,12 @@ public class AnnotationConfigApplicationContext extends GenericApplicationContex
 		// 在自己的构造方法中初始化一个读取器和扫描器
 		this();
 
+		/*
+			主要做一件事，就是把传进来的被注解了 @Configuration @Component @ComponentScan @import @ImportResource
+			符合条件的类 给注册到 bdm 中去
+		 */
 		register(componentClasses);
+		// 这里是真正的spring生命周期
 		refresh();
 	}
 

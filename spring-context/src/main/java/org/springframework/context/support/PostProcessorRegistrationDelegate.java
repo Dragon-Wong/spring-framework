@@ -55,12 +55,12 @@ final class PostProcessorRegistrationDelegate {
 			List<BeanFactoryPostProcessor> regularPostProcessors = new ArrayList<>();
 			List<BeanDefinitionRegistryPostProcessor> registryProcessors = new ArrayList<>();
 
-			// 目前 该集合只有一个，也就是 BeanDefinitionRegistryPostProcessor
+			// 目前 该集合只有一个，也就是 ConfigurationClassPostProcessor
 			for (BeanFactoryPostProcessor postProcessor : beanFactoryPostProcessors) {
 				if (postProcessor instanceof BeanDefinitionRegistryPostProcessor) {
 					BeanDefinitionRegistryPostProcessor registryProcessor =
 							(BeanDefinitionRegistryPostProcessor) postProcessor;
-					// 也就是说 这里会直接调用 BeanDefinitionRegistryPostProcessor 中的方法
+					// 也就是说 这里会直接调用 ConfigurationClassPostProcessor 中的方法
 					registryProcessor.postProcessBeanDefinitionRegistry(registry);
 					registryProcessors.add(registryProcessor);
 				}

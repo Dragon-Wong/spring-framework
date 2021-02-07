@@ -312,8 +312,10 @@ public class ConfigurationClassPostProcessor implements BeanDefinitionRegistryPo
 		do {
 			// 解析每一个 配置类
 			parser.parse(candidates);
+			// 这里验证配置类是否可以被cglib代理
 			parser.validate();
 
+			// 拿出上面 parser.parse(candidates); 扫描的所有符合条件的 配置类（@Configuration、 @Component、 @Import...等）
 			Set<ConfigurationClass> configClasses = new LinkedHashSet<>(parser.getConfigurationClasses());
 			configClasses.removeAll(alreadyParsed);
 
@@ -327,6 +329,11 @@ public class ConfigurationClassPostProcessor implements BeanDefinitionRegistryPo
 			alreadyParsed.addAll(configClasses);
 
 			candidates.clear();
+
+			/*
+				检查报扫描之前和扫描之后 bdm 中的 bd 数量是否发生改变，如果改变了，说明有新的 bd 被扫描到，
+				那就需要在这里检查新添加进来的类，并更改 beanName 的集合为新的集合
+			 */
 			if (registry.getBeanDefinitionCount() > candidateNames.length) {
 				String[] newCandidateNames = registry.getBeanDefinitionNames();
 				Set<String> oldCandidateNames = new HashSet<>(Arrays.asList(candidateNames));

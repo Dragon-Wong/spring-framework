@@ -169,6 +169,7 @@ class ConfigurationClassParser {
 			}
 		}
 
+		// 到这里说明所有的 @Bean 方法都已经解析完毕，现在开始解析需要延迟导入的类
 		this.deferredImportSelectorHandler.process();
 	}
 
@@ -325,6 +326,7 @@ class ConfigurationClassParser {
 		// Process individual @Bean methods
 		Set<MethodMetadata> beanMethods = retrieveBeanMethodMetadata(sourceClass);
 		for (MethodMetadata methodMetadata : beanMethods) {
+			// 将所有 @Bean 方法添加到集合中，以便在后面进行处理
 			configClass.addBeanMethod(new BeanMethod(methodMetadata, configClass));
 		}
 
@@ -401,6 +403,8 @@ class ConfigurationClassParser {
 	private Set<MethodMetadata> retrieveBeanMethodMetadata(SourceClass sourceClass) {
 		AnnotationMetadata original = sourceClass.getMetadata();
 		Set<MethodMetadata> beanMethods = original.getAnnotatedMethods(Bean.class.getName());
+		// 只有同一个类下面存在多个 @Bean 方法时才会进入下面逻辑，目的好像是为了将方法重新排序。
+		// 所以只有一个 @Bean 方法的话，就没必要排序了
 		if (beanMethods.size() > 1 && original instanceof StandardAnnotationMetadata) {
 			// Try reading the class file via ASM for deterministic declaration order...
 			// Unfortunately, the JVM's standard reflection returns methods in arbitrary
@@ -586,6 +590,7 @@ class ConfigurationClassParser {
 							exclusionFilter = exclusionFilter.or(selectorFilter);
 						}
 						if (selector instanceof DeferredImportSelector) {
+							// 如果是需要延迟导入的类，则在这里不做处理，仅仅是将其添加到集合中暂存，等所有 @Bean 方法解析完以后才解析
 							this.deferredImportSelectorHandler.handle(configClass, (DeferredImportSelector) selector);
 						}
 						else {
@@ -605,9 +610,10 @@ class ConfigurationClassParser {
 						ImportBeanDefinitionRegistrar registrar =
 								ParserStrategyUtils.instantiateClass(candidateClass, ImportBeanDefinitionRegistrar.class,
 										this.environment, this.resourceLoader, this.registry);
+						// 仅仅是将 ImportBeanDefinitionRegistrar 实例化出来以后存到了 map 中，估计是留在右面做处理
 						configClass.addImportBeanDefinitionRegistrar(registrar, currentSourceClass.getMetadata());
 					}
-					// 解析普通类
+					// 解析普通类，把他当做一个加了 @Configuration 注解的类来处理
 					else {
 						// Candidate class not an ImportSelector or ImportBeanDefinitionRegistrar ->
 						// process it as an @Configuration class

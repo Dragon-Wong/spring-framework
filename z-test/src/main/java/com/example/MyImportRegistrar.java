@@ -1,6 +1,8 @@
 package com.example;
 
+import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.context.annotation.ImportBeanDefinitionRegistrar;
+import org.springframework.core.type.AnnotationMetadata;
 
 /**
  * @author Endy
@@ -8,4 +10,8 @@ import org.springframework.context.annotation.ImportBeanDefinitionRegistrar;
  **/
 public class MyImportRegistrar implements ImportBeanDefinitionRegistrar {
 
+	@Override
+	public void registerBeanDefinitions(AnnotationMetadata importingClassMetadata, BeanDefinitionRegistry registry) {
+		registry.getBeanDefinition("indexDao").getConstructorArgumentValues().addGenericArgumentValue(new IndexDao1());
+	}
 }

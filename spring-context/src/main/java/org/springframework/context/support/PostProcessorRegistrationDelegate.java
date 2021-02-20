@@ -121,6 +121,12 @@ final class PostProcessorRegistrationDelegate {
 			}
 
 			// Now, invoke the postProcessBeanFactory callback of all processors handled so far.
+			/*
+				在这里调用所有实现了 BeanFactoryPostProcessor 接口的 postProcessBeanFactory 方法。
+				在 ConfigurationClassPostProcessor 的 postProcessBeanFactory 方法中实现了一个非常重要的功能：
+				就是将添加了 @Configuration 注解的类进行了 cglib 代理，从而实现了在加了 @Configuration 的配置类中一个@Bean调用
+				另一个@Bean的时候，获取的是spring容器中的对象，而不是新new的对象，从而实现了bean的单例
+			 */
 			invokeBeanFactoryPostProcessors(registryProcessors, beanFactory);
 			invokeBeanFactoryPostProcessors(regularPostProcessors, beanFactory);
 		}
@@ -182,6 +188,8 @@ final class PostProcessorRegistrationDelegate {
 	public static void registerBeanPostProcessors(
 			ConfigurableListableBeanFactory beanFactory, AbstractApplicationContext applicationContext) {
 
+		// 从 bdm 中获取所有的 BeanPostProcessor 然后经过排序后依次注册
+		// 实现 aop 所使用的 AnnotationAwareAspectJAutoProxyCreator 就是从这里获取到然后注册的（前提是使用 @EnableAspectJAutoProxy 开启了aop）
 		String[] postProcessorNames = beanFactory.getBeanNamesForType(BeanPostProcessor.class, true, false);
 
 		// Register BeanPostProcessorChecker that logs an info message when

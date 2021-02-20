@@ -115,16 +115,22 @@ class ConfigurationClassEnhancer {
 		Enhancer enhancer = new Enhancer();
 		// 增强父类，地球人都知道 cglib 是基于继承来的
 		enhancer.setSuperclass(configSuperClass);
-		// 增强接口，为什么要增强接口？ 是为了便于判断，表示一个类以及被增强了
+		/*
+			增强接口，为什么要增强接口？ 有两个用处：
+			1 是为了便于判断，如果一个类已经 实现了 EnhancedConfiguration 说明，该类已经被代理了
+			2 EnhancedConfiguration 接口实现了 BeanFactoryAware 接口，可以将 BeanFactory 回调给代理后的类，方便使用 BeanFactory
+		*/
 		enhancer.setInterfaces(new Class<?>[] {EnhancedConfiguration.class});
 		enhancer.setUseFactory(false);
 		enhancer.setNamingPolicy(SpringNamingPolicy.INSTANCE);
-		// BeanFactoryAwareGeneratorStrategy 是一个生成策略
-		// 主要为生成的 cglib 类中添加成员变量 $$beanFactory
-		// 同时基于接口 EnhancedConfiguration 的父接口  BeanFactoryAware 中的 setBeanFactory 方法，
-		// 设置此变量的值为当前 Context 中的 beanFactory，这样一来我们这个 cglib 代理的对象就有了beanFactory
-		// 有了 beanFactory 就能获得对象，而不用去通过方法获得对象。因为通过方法获得对象不能控制其过程
-		// 该 beanFactory 的作用是在 this 调用时拦截该应用，并直接在 beanFactory 中获得目标 bean
+		/*
+			BeanFactoryAwareGeneratorStrategy 是一个生成策略
+			主要为生成的 cglib 类中添加成员变量 $$beanFactory
+			同时基于接口 EnhancedConfiguration 的父接口  BeanFactoryAware 中的 setBeanFactory 方法，
+			设置此变量的值为当前 Context 中的 beanFactory，这样一来我们这个 cglib 代理的对象就有了beanFactory
+			有了 beanFactory 就能获得对象，而不用去通过方法获得对象。因为通过方法获得对象不能控制其过程
+			该 beanFactory 的作用是在 this 调用时拦截该应用，并直接在 beanFactory 中获得目标 bean
+		*/
 		enhancer.setStrategy(new BeanFactoryAwareGeneratorStrategy(classLoader));
 		enhancer.setCallbackFilter(CALLBACK_FILTER);
 		enhancer.setCallbackTypes(CALLBACK_FILTER.getCallbackTypes());

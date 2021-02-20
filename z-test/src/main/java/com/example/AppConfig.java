@@ -1,5 +1,6 @@
 package com.example;
 
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -12,4 +13,9 @@ import org.springframework.context.annotation.Import;
 @ComponentScan("com.example")
 @Import({MyImport.class, MyImportRegistrar.class})
 public class AppConfig {
+
+	@Bean
+	public UserEntity dataSource() {
+		return new UserEntity();
+	}
 }

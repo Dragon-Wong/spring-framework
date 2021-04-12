@@ -267,11 +267,11 @@ public class AnnotatedBeanDefinitionReader {
 		abd.setScope(scopeMetadata.getScopeName());
 		/*
 		生成 beanName，如果用户指定了 beanNameGenerator 则使用指定的生成策略，
-		否则使用默认的类名首字母消息的生成策略
+		否则使用默认的类名首字母小写的生成策略
 		 */
 		String beanName = (name != null ? name : this.beanNameGenerator.generateBeanName(abd, this.registry));
 
-		// 处理通用的注解， Lazy	Primary DependsOn	Role	Description
+		// 处理通用的注解， Lazy	Primary   DependsOn	  Role	 Description
 		AnnotationConfigUtils.processCommonDefinitionAnnotations(abd);
 		if (qualifiers != null) {
 			for (Class<? extends Annotation> qualifier : qualifiers) {

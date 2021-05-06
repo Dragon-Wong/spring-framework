@@ -325,13 +325,16 @@ public class ConfigurationClassPostProcessor implements BeanDefinitionRegistryPo
 						registry, this.sourceExtractor, this.resourceLoader, this.environment,
 						this.importBeanNameGenerator, parser.getImportRegistry());
 			}
+			// 这里将扫描到的所有需要注册到 spring 中的类注册到 spring 的 bdm 中，包括
+			// 	@Configuration、 @Component、 @Import 注解的类
+			// 	@Bean 注解的方法
 			this.reader.loadBeanDefinitions(configClasses);
 			alreadyParsed.addAll(configClasses);
 
 			candidates.clear();
 
 			/*
-				检查报扫描之前和扫描之后 bdm 中的 bd 数量是否发生改变，如果改变了，说明有新的 bd 被扫描到，
+				检查包扫描之前和扫描之后 bdm 中的 bd 数量是否发生改变，如果改变了，说明有新的 bd 被扫描到，
 				那就需要在这里检查新添加进来的类，并更改 beanName 的集合为新的集合
 			 */
 			if (registry.getBeanDefinitionCount() > candidateNames.length) {

@@ -258,7 +258,7 @@ public class ClassPathBeanDefinitionScanner extends ClassPathScanningCandidateCo
 	}
 
 	/**
-	 * 真正的执行报扫描工作，将符合条件的 bean 全部扫描出来，并封装成 BeanDefinition 然后注册到 bdm 中
+	 * 真正的执行包扫描工作，将符合条件的 bean 全部扫描出来，并封装成 BeanDefinition 然后注册到 bdm 中
 	 *
 	 * Perform a scan within the specified base packages,
 	 * returning the registered bean definitions.
@@ -289,6 +289,7 @@ public class ClassPathBeanDefinitionScanner extends ClassPathScanningCandidateCo
 				}
 				if (checkCandidate(beanName, candidate)) {
 					BeanDefinitionHolder definitionHolder = new BeanDefinitionHolder(candidate, beanName);
+					// 检查 bd 是否需要代理，如果需要，则标记为使用 cglib 代理的 bd
 					definitionHolder =
 							AnnotationConfigUtils.applyScopedProxyMode(scopeMetadata, definitionHolder, this.registry);
 					beanDefinitions.add(definitionHolder);

@@ -133,7 +133,9 @@ class ConfigurationClassBeanDefinitionReader {
 			loadBeanDefinitionsForBeanMethod(beanMethod);
 		}
 
+		// 加载从 importedResources 中配置的资源中的 bean，并且注册到 bdm 中，有可能是 xml 的，有可能是 groovy 的
 		loadBeanDefinitionsFromImportedResources(configClass.getImportedResources());
+		// 加载之前解析的所有 importBeanDefinitionRegistrar，将每一个里面配置的 bean 注册到 bdm 中
 		loadBeanDefinitionsFromRegistrars(configClass.getImportBeanDefinitionRegistrars());
 	}
 

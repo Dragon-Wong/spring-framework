@@ -328,6 +328,8 @@ public class ConfigurationClassPostProcessor implements BeanDefinitionRegistryPo
 			// 这里将扫描到的所有需要注册到 spring 中的类注册到 spring 的 bdm 中，包括
 			// 	@Configuration、 @Component、 @Import 注解的类
 			// 	@Bean 注解的方法
+			// @ImportSource 导入的资源
+			// @Import 导入的 ImportBeanDefinitionRegistrar
 			this.reader.loadBeanDefinitions(configClasses);
 			alreadyParsed.addAll(configClasses);
 
@@ -347,6 +349,9 @@ public class ConfigurationClassPostProcessor implements BeanDefinitionRegistryPo
 				for (String candidateName : newCandidateNames) {
 					if (!oldCandidateNames.contains(candidateName)) {
 						BeanDefinition bd = registry.getBeanDefinition(candidateName);
+						// 我个人觉得：
+						// 这里拿到新添加的 bd 再做一次是否已解析的验证，防止出现有从其他地方注册到 bdm 中的 bd 而没有被解析，
+						// 所以这里拿到这些未被解析的 bd，再次解析一次
 						if (ConfigurationClassUtils.checkConfigurationClassCandidate(bd, this.metadataReaderFactory) &&
 								!alreadyParsedClasses.contains(bd.getBeanClassName())) {
 							candidates.add(new BeanDefinitionHolder(bd, candidateName));

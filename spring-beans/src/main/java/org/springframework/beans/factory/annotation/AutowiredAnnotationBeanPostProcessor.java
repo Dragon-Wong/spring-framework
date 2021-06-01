@@ -301,7 +301,7 @@ public class AutowiredAnnotationBeanPostProcessor extends InstantiationAwareBean
 						else if (primaryConstructor != null) {
 							continue;
 						}
-						// 获取构造方法上是否加了 @Autowired 注解
+						// 获取构造方法上是否加了 @Autowired 和 @Value 注解
 						MergedAnnotation<?> ann = findAutowiredAnnotation(candidate);
 						if (ann == null) {
 							Class<?> userClass = ClassUtils.getUserClass(beanClass);
@@ -316,7 +316,7 @@ public class AutowiredAnnotationBeanPostProcessor extends InstantiationAwareBean
 								}
 							}
 						}
-						// 如果加了 @Autowired 注解，就将该构造方法添加到 candidates 集合中，当做候选
+						// 如果加了 @Autowired 或 @Value 注解，就将该构造方法添加到 candidates 集合中，当做候选
 						if (ann != null) {
 							if (requiredConstructor != null) {
 								throw new BeanCreationException(beanName,

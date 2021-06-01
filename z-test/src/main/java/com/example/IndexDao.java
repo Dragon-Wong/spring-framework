@@ -1,12 +1,10 @@
 package com.example;
 
-import org.springframework.stereotype.Component;
-
 /**
  * @author Endy
  * @create 2021-01-07 13:16
  **/
-@Component
+// @Component
 public class IndexDao {
 
 	// @Autowired
@@ -15,10 +13,6 @@ public class IndexDao {
 	// public IndexDao() {
 	// 	System.out.println("IndexDao init");
 	// }
-
-	public IndexDao(IndexDao1 indexDao1) {
-
-	}
 
 	// @Autowired(required = false)
 	// public IndexDao(MyImport myImport, IndexDao1 indexDao1) {

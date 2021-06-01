@@ -424,6 +424,8 @@ public class ClassPathScanningCandidateComponentProvider implements EnvironmentC
 				if (resource.isReadable()) {
 					try {
 						MetadataReader metadataReader = getMetadataReaderFactory().getMetadataReader(resource);
+						// 确定给定的类是否不匹配任何排除过滤器并且是否匹配至少一个包含过滤器
+						// 其实就是找出添加了 @Component 注解的类，然后封装成一个 bd，
 						if (isCandidateComponent(metadataReader)) {
 							ScannedGenericBeanDefinition sbd = new ScannedGenericBeanDefinition(metadataReader);
 							sbd.setSource(resource);

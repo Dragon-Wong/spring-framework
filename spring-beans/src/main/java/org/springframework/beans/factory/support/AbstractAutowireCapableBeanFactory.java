@@ -527,6 +527,9 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 		}
 
 		// Allow post-processors to modify the merged bean definition.
+		// 执行所有 MergedBeanDefinitionPostProcessor 类型的后置处理器，
+		// 大名鼎鼎的 @Autowired 就是在这里解析的，后置处理器为 AutowiredAnnotationBeanPostProcessor
+		// 当然这里只是解析，将添加了 @Autowired 的属性和方法都记录下来。真正的注入是在下面 bean 的初始化中进行的
 		synchronized (mbd.postProcessingLock) {
 			if (!mbd.postProcessed) {
 				try {
@@ -1378,14 +1381,19 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 
 		PropertyValues pvs = (mbd.hasPropertyValues() ? mbd.getPropertyValues() : null);
 
+		// 获取注入类型是 byName、byType、constructor 还是 no
+		// 也就是经常说的 按名称注入、按类型注入、构造器注入
+		// 平时一般都说默认情况下是 按类型注入，其实不是，其实默认情况下是 no，并不是 byType
 		int resolvedAutowireMode = mbd.getResolvedAutowireMode();
 		if (resolvedAutowireMode == AUTOWIRE_BY_NAME || resolvedAutowireMode == AUTOWIRE_BY_TYPE) {
 			MutablePropertyValues newPvs = new MutablePropertyValues(pvs);
 			// Add property values based on autowire by name if applicable.
+			// 按名称注入的处理逻辑，只是将 属性名 和 需要注入的 bean 绑定到一个 PropertyValue 中，后面统一赋值
 			if (resolvedAutowireMode == AUTOWIRE_BY_NAME) {
 				autowireByName(beanName, mbd, bw, newPvs);
 			}
 			// Add property values based on autowire by type if applicable.
+			// 按类型注入的处理逻辑，只是将 属性名 和 需要注入的 bean 绑定到一个 PropertyValue 中，后面统一赋值
 			if (resolvedAutowireMode == AUTOWIRE_BY_TYPE) {
 				autowireByType(beanName, mbd, bw, newPvs);
 			}
@@ -1403,6 +1411,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 			for (BeanPostProcessor bp : getBeanPostProcessors()) {
 				if (bp instanceof InstantiationAwareBeanPostProcessor) {
 					InstantiationAwareBeanPostProcessor ibp = (InstantiationAwareBeanPostProcessor) bp;
+					// 这一步如果是 AutowiredAnnotationBeanPostProcessor 的时候，就会给要注入的属性注入好值了
 					PropertyValues pvsToUse = ibp.postProcessProperties(pvs, bw.getWrappedInstance(), beanName);
 					if (pvsToUse == null) {
 						if (filteredPds == null) {

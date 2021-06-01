@@ -280,7 +280,7 @@ public class ClassPathBeanDefinitionScanner extends ClassPathScanningCandidateCo
 				if (candidate instanceof AbstractBeanDefinition) {
 					// 给一些属性赋值，也就是 BeanDefinitionDefaults 这个类中的属性；
 					// 自己配置的 lazyInit 之类的属性，也会被提前解析然后放到这个类中，以供现在使用;
-					// 这里的 lazyInit 是 @ComponentScan 注解中的 lazyInit 属性，并非是 @Lazy注解
+					// 这里的 lazyInit 是 @ComponentScan 注解中的 lazyInit 属性，并非是 @Lazy 注解
 					postProcessBeanDefinition((AbstractBeanDefinition) candidate, beanName);
 				}
 				if (candidate instanceof AnnotatedBeanDefinition) {

@@ -10,7 +10,7 @@ public class AnnotationTest {
 
 	public static void main(String[] args) {
 		AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext(AppConfig.class);
-		IndexDao bean = context.getBean(IndexDao.class);
+		IndexDao1 bean = context.getBean(IndexDao1.class);
 		bean.test();
 	}
 }

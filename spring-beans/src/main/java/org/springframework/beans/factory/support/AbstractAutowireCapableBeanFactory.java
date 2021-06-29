@@ -1779,6 +1779,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 		Object wrappedBean = bean;
 		if (mbd == null || !mbd.isSynthetic()) {
 			// 执行后置处理器的 before
+			// 在这里执行了 @PostConstruct 的逻辑，具体逻辑在 InitDestroyAnnotationBeanPostProcessor 中
 			wrappedBean = applyBeanPostProcessorsBeforeInitialization(wrappedBean, beanName);
 		}
 

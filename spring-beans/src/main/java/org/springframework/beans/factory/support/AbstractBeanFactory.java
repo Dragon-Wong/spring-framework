@@ -226,7 +226,7 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 			}
 			/*
 				如果 sharedInstance 是普通的单例 bean， 下面的方法会直接返回。
-				如果是 FactoryBean 类型的，则需要条用 getObject 工厂方法获取真正的 bean 实例。
+				如果是 FactoryBean 类型的，则需要调用 getObject 工厂方法获取真正的 bean 实例。
 				如果用户想要获取 FactoryBean 本身，这里也不会做特别的处理，直接返回即可，毕竟 FactoryBean 的实现类本身也是一种 bean
 			 */
 			bean = getObjectForBeanInstance(sharedInstance, name, beanName, null);
@@ -261,6 +261,8 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 				}
 			}
 
+			// typeCheckOnly = true 表示用户只想要获取bean的类型 而不关心bean是否创建
+			// 所以当 typeCheckOnly = false 的时候，这里需要将该bean标记为已创建，因为下面就是创建bean的逻辑
 			if (!typeCheckOnly) {
 				markBeanAsCreated(beanName);
 			}

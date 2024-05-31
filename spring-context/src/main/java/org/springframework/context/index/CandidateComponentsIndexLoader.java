@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,7 +38,10 @@ import org.springframework.util.ConcurrentReferenceHashMap;
  *
  * @author Stephane Nicoll
  * @since 5.0
+ * @deprecated as of 6.1, in favor of the AOT engine.
  */
+@Deprecated(since = "6.1", forRemoval = true)
+@SuppressWarnings("removal")
 public final class CandidateComponentsIndexLoader {
 
 	/**
@@ -48,13 +51,13 @@ public final class CandidateComponentsIndexLoader {
 	public static final String COMPONENTS_RESOURCE_LOCATION = "META-INF/spring.components";
 
 	/**
-	 * System property that instructs Spring to ignore the index, i.e.
+	 * System property that instructs Spring to ignore the components index, i.e.
 	 * to always return {@code null} from {@link #loadIndex(ClassLoader)}.
 	 * <p>The default is "false", allowing for regular use of the index. Switching this
 	 * flag to {@code true} fulfills a corner case scenario when an index is partially
 	 * available for some libraries (or use cases) but couldn't be built for the whole
 	 * application. In this case, the application context fallbacks to a regular
-	 * classpath arrangement (i.e. as no index was present at all).
+	 * classpath arrangement (i.e. as though no index were present at all).
 	 */
 	public static final String IGNORE_INDEX = "spring.index.ignore";
 
@@ -107,7 +110,7 @@ public final class CandidateComponentsIndexLoader {
 				result.add(properties);
 			}
 			if (logger.isDebugEnabled()) {
-				logger.debug("Loaded " + result.size() + "] index(es)");
+				logger.debug("Loaded " + result.size() + " index(es)");
 			}
 			int totalCount = result.stream().mapToInt(Properties::size).sum();
 			return (totalCount > 0 ? new CandidateComponentsIndex(result) : null);

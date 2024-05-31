@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,16 +17,20 @@
 package org.springframework.test.web.servlet.setup;
 
 import java.io.IOException;
-
-import javax.servlet.Filter;
-import javax.servlet.FilterChain;
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import java.util.EnumSet;
+import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ser.impl.UnknownSerializer;
+import jakarta.servlet.DispatcherType;
+import jakarta.servlet.Filter;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.FilterConfig;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import org.springframework.http.converter.json.SpringHandlerInstantiator;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -41,6 +45,9 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 /**
  * Tests for {@link StandaloneMockMvcBuilder}
@@ -49,10 +56,10 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
  * @author Rob Winch
  * @author Sebastien Deleuze
  */
-public class StandaloneMockMvcBuilderTests {
+class StandaloneMockMvcBuilderTests {
 
 	@Test  // SPR-10825
-	public void placeHoldersInRequestMapping() throws Exception {
+	void placeHoldersInRequestMapping() throws Exception {
 		TestStandaloneMockMvcBuilder builder = new TestStandaloneMockMvcBuilder(new PlaceholderController());
 		builder.addPlaceholderValue("sys.login.ajax", "/foo");
 		builder.build();
@@ -68,7 +75,7 @@ public class StandaloneMockMvcBuilderTests {
 
 	@Test  // SPR-13637
 	@SuppressWarnings("deprecation")
-	public void suffixPatternMatch() throws Exception {
+	void suffixPatternMatch() throws Exception {
 		TestStandaloneMockMvcBuilder builder = new TestStandaloneMockMvcBuilder(new PersonController());
 		builder.setUseSuffixPatternMatch(false);
 		builder.build();
@@ -86,44 +93,57 @@ public class StandaloneMockMvcBuilderTests {
 	}
 
 	@Test  // SPR-12553
-	public void applicationContextAttribute() {
+	void applicationContextAttribute() {
 		TestStandaloneMockMvcBuilder builder = new TestStandaloneMockMvcBuilder(new PlaceholderController());
 		builder.addPlaceholderValue("sys.login.ajax", "/foo");
-		WebApplicationContext  wac = builder.initWebAppContext();
+		WebApplicationContext wac = builder.initWebAppContext();
 		assertThat(WebApplicationContextUtils.getRequiredWebApplicationContext(wac.getServletContext())).isEqualTo(wac);
 	}
 
 	@Test
-	public void addFiltersFiltersNull() {
+	void addFiltersFiltersNull() {
 		StandaloneMockMvcBuilder builder = MockMvcBuilders.standaloneSetup(new PersonController());
 		assertThatIllegalArgumentException().isThrownBy(() ->
 				builder.addFilters((Filter[]) null));
 	}
 
 	@Test
-	public void addFiltersFiltersContainsNull() {
+	void addFiltersFiltersContainsNull() {
 		StandaloneMockMvcBuilder builder = MockMvcBuilders.standaloneSetup(new PersonController());
 		assertThatIllegalArgumentException().isThrownBy(() ->
-				builder.addFilters(new ContinueFilter(), (Filter) null));
+				builder.addFilters(new ContinueFilter(), null));
 	}
 
 	@Test
-	public void addFilterPatternsNull() {
+	void addFilterPatternsNull() {
 		StandaloneMockMvcBuilder builder = MockMvcBuilders.standaloneSetup(new PersonController());
 		assertThatIllegalArgumentException().isThrownBy(() ->
 				builder.addFilter(new ContinueFilter(), (String[]) null));
 	}
 
 	@Test
-	public void addFilterPatternContainsNull() {
+	void addFilterPatternContainsNull() {
 		StandaloneMockMvcBuilder builder = MockMvcBuilders.standaloneSetup(new PersonController());
 		assertThatIllegalArgumentException().isThrownBy(() ->
 				builder.addFilter(new ContinueFilter(), (String) null));
 	}
 
+	@Test
+	void addFilterWithInitParams() throws ServletException {
+		Filter filter = mock(Filter.class);
+		ArgumentCaptor<FilterConfig> captor = ArgumentCaptor.forClass(FilterConfig.class);
+
+		MockMvcBuilders.standaloneSetup(new PersonController())
+				.addFilter(filter, null, Map.of("p", "v"), EnumSet.of(DispatcherType.REQUEST), "/")
+				.build();
+
+		verify(filter, times(1)).init(captor.capture());
+		assertThat(captor.getValue().getInitParameter("p")).isEqualTo("v");
+	}
+
 	@Test  // SPR-13375
 	@SuppressWarnings("rawtypes")
-	public void springHandlerInstantiator() {
+	void springHandlerInstantiator() {
 		TestStandaloneMockMvcBuilder builder = new TestStandaloneMockMvcBuilder(new PersonController());
 		builder.build();
 		SpringHandlerInstantiator instantiator = new SpringHandlerInstantiator(builder.wac.getAutowireCapableBeanFactory());
@@ -171,7 +191,7 @@ public class StandaloneMockMvcBuilderTests {
 	}
 
 
-	private class ContinueFilter extends OncePerRequestFilter {
+	private static class ContinueFilter extends OncePerRequestFilter {
 
 		@Override
 		protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2020 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,21 +17,22 @@
 package org.springframework.beans.factory.config;
 
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
-import org.yaml.snakeyaml.constructor.ConstructorException;
+import org.yaml.snakeyaml.composer.ComposerException;
 import org.yaml.snakeyaml.parser.ParserException;
 import org.yaml.snakeyaml.scanner.ScannerException;
 
 import org.springframework.core.io.ByteArrayResource;
 
-import static java.util.stream.Collectors.toList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.entry;
+import static org.assertj.core.api.InstanceOfAssertFactories.set;
 
 /**
  * Tests for {@link YamlProcessor}.
@@ -39,17 +40,19 @@ import static org.assertj.core.api.Assertions.entry;
  * @author Dave Syer
  * @author Juergen Hoeller
  * @author Sam Brannen
+ * @author Brian Clozel
  */
 class YamlProcessorTests {
 
-	private final YamlProcessor processor = new YamlProcessor() {};
+	private final YamlProcessor processor = new YamlProcessor() {
+	};
 
 
 	@Test
 	void arrayConvertedToIndexedBeanReference() {
 		setYaml("foo: bar\nbar: [1,2,3]");
 		this.processor.process((properties, map) -> {
-			assertThat(properties.size()).isEqualTo(4);
+			assertThat(properties).hasSize(4);
 			assertThat(properties.get("foo")).isEqualTo("bar");
 			assertThat(properties.getProperty("foo")).isEqualTo("bar");
 			assertThat(properties.get("bar[0]")).isEqualTo(1);
@@ -79,8 +82,8 @@ class YamlProcessorTests {
 	void badResource() {
 		setYaml("foo: bar\ncd\nspam:\n  foo: baz");
 		assertThatExceptionOfType(ScannerException.class)
-			.isThrownBy(() -> this.processor.process((properties, map) -> {}))
-			.withMessageContaining("line 3, column 1");
+				.isThrownBy(() -> this.processor.process((properties, map) -> {}))
+				.withMessageContaining("line 3, column 1");
 	}
 
 	@Test
@@ -127,8 +130,8 @@ class YamlProcessorTests {
 			Map<String, Object> bar = (Map<String, Object>) map.get("bar");
 			assertThat(bar.get("spam")).isEqualTo("bucket");
 
-			List<Object> keysFromProperties = properties.keySet().stream().collect(toList());
-			List<String> keysFromFlattenedMap = flattenedMap.keySet().stream().collect(toList());
+			List<Object> keysFromProperties = new ArrayList<>(properties.keySet());
+			List<String> keysFromFlattenedMap = new ArrayList<>(flattenedMap.keySet());
 			assertThat(keysFromProperties).containsExactlyInAnyOrderElementsOf(keysFromFlattenedMap);
 			// Keys in the Properties object are sorted.
 			assertThat(keysFromProperties).containsExactly("bar.spam", "cat", "foo");
@@ -138,14 +141,21 @@ class YamlProcessorTests {
 	}
 
 	@Test
-	void customTypeSupportedByDefault() throws Exception {
+	void standardTypesSupportedByDefault() {
+		setYaml("value: !!set\n  ? first\n  ? second");
+		this.processor.process((properties, map) -> {
+			assertThat(properties).containsExactly(entry("value[0]", "first"), entry("value[1]", "second"));
+			assertThat(map.get("value")).asInstanceOf(set(String.class)).containsExactly("first", "second");
+		});
+	}
+
+	@Test
+	void customTypeNotSupportedByDefault() throws Exception {
 		URL url = new URL("https://localhost:9000/");
 		setYaml("value: !!java.net.URL [\"" + url + "\"]");
-
-		this.processor.process((properties, map) -> {
-			assertThat(properties).containsExactly(entry("value", url));
-			assertThat(map).containsExactly(entry("value", url));
-		});
+		assertThatExceptionOfType(ComposerException.class)
+				.isThrownBy(() -> this.processor.process((properties, map) -> {}))
+				.withMessageContaining("Global tag is not allowed: tag:yaml.org,2002:java.net.URL");
 	}
 
 	@Test
@@ -167,9 +177,9 @@ class YamlProcessorTests {
 
 		setYaml("value: !!java.net.URL [\"https://localhost:9000/\"]");
 
-		assertThatExceptionOfType(ConstructorException.class)
-			.isThrownBy(() -> this.processor.process((properties, map) -> {}))
-			.withMessageContaining("Unsupported type encountered in YAML document: java.net.URL");
+		assertThatExceptionOfType(ComposerException.class)
+				.isThrownBy(() -> this.processor.process((properties, map) -> {}))
+				.withMessageContaining("Global tag is not allowed: tag:yaml.org,2002:java.net.URL");
 	}
 
 	private void setYaml(String yaml) {

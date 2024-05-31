@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,11 +29,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import javax.servlet.FilterChain;
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletRequestWrapper;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequestWrapper;
+import jakarta.servlet.http.HttpServletResponse;
 
 import org.springframework.http.HttpInputMessage;
 import org.springframework.http.MediaType;
@@ -95,6 +95,7 @@ public class FormContentFilter extends OncePerRequestFilter {
 	}
 
 	@Nullable
+	@SuppressWarnings("unchecked")
 	private MultiValueMap<String, String> parseIfNecessary(HttpServletRequest request) throws IOException {
 		if (!shouldParse(request)) {
 			return null;
@@ -106,7 +107,7 @@ public class FormContentFilter extends OncePerRequestFilter {
 				return request.getInputStream();
 			}
 		};
-		return this.formConverter.read(null, inputMessage);
+		return (MultiValueMap<String, String>) this.formConverter.read(null, inputMessage);
 	}
 
 	private boolean shouldParse(HttpServletRequest request) {
@@ -126,7 +127,7 @@ public class FormContentFilter extends OncePerRequestFilter {
 
 	private static class FormContentRequestWrapper extends HttpServletRequestWrapper {
 
-		private MultiValueMap<String, String> formParams;
+		private final MultiValueMap<String, String> formParams;
 
 		public FormContentRequestWrapper(HttpServletRequest request, MultiValueMap<String, String> params) {
 			super(request);

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2020 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,13 +21,19 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Collectors;
+
+import io.micrometer.observation.ObservationRegistry;
+import reactor.blockhound.BlockHound;
+import reactor.blockhound.integration.BlockHoundIntegration;
 
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
 import org.springframework.http.codec.ServerCodecConfigurer;
 import org.springframework.http.server.reactive.HttpHandler;
+import org.springframework.http.server.reactive.HttpHandlerDecoratorFactory;
+import org.springframework.http.server.reactive.observation.DefaultServerRequestObservationConvention;
+import org.springframework.http.server.reactive.observation.ServerRequestObservationConvention;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.util.ObjectUtils;
@@ -77,7 +83,6 @@ public final class WebHttpHandlerBuilder {
 	/** Well-known name for the ForwardedHeaderTransformer in the bean factory. */
 	public static final String FORWARDED_HEADER_TRANSFORMER_BEAN_NAME = "forwardedHeaderTransformer";
 
-
 	private final WebHandler webHandler;
 
 	@Nullable
@@ -86,6 +91,9 @@ public final class WebHttpHandlerBuilder {
 	private final List<WebFilter> filters = new ArrayList<>();
 
 	private final List<WebExceptionHandler> exceptionHandlers = new ArrayList<>();
+
+	@Nullable
+	private Function<HttpHandler, HttpHandler> httpHandlerDecorator;
 
 	@Nullable
 	private WebSessionManager sessionManager;
@@ -100,7 +108,10 @@ public final class WebHttpHandlerBuilder {
 	private ForwardedHeaderTransformer forwardedHeaderTransformer;
 
 	@Nullable
-	private Function<HttpHandler, HttpHandler> httpHandlerDecorator;
+	private ObservationRegistry observationRegistry;
+
+	@Nullable
+	private ServerRequestObservationConvention observationConvention;
 
 
 	/**
@@ -124,6 +135,8 @@ public final class WebHttpHandlerBuilder {
 		this.codecConfigurer = other.codecConfigurer;
 		this.localeContextResolver = other.localeContextResolver;
 		this.forwardedHeaderTransformer = other.forwardedHeaderTransformer;
+		this.observationRegistry = other.observationRegistry;
+		this.observationConvention = other.observationConvention;
 		this.httpHandlerDecorator = other.httpHandlerDecorator;
 	}
 
@@ -147,6 +160,12 @@ public final class WebHttpHandlerBuilder {
 	 * see {@link AnnotationAwareOrderComparator}.
 	 * <li>{@link WebExceptionHandler} [0..N] -- detected by type and
 	 * ordered.
+	 * <li>{@link HttpHandlerDecoratorFactory} [0..N] -- detected by type and
+	 * ordered.
+	 * <li>{@link ObservationRegistry} -- detected by type and
+	 * configured if unique.
+	 * <li>{@link ServerRequestObservationConvention} -- detected by type and
+	 * configured if unique.
 	 * <li>{@link WebSessionManager} [0..1] -- looked up by the name
 	 * {@link #WEB_SESSION_MANAGER_BEAN_NAME}.
 	 * <li>{@link ServerCodecConfigurer} [0..1] -- looked up by the name
@@ -158,19 +177,28 @@ public final class WebHttpHandlerBuilder {
 	 * @return the prepared builder
 	 */
 	public static WebHttpHandlerBuilder applicationContext(ApplicationContext context) {
+
 		WebHttpHandlerBuilder builder = new WebHttpHandlerBuilder(
 				context.getBean(WEB_HANDLER_BEAN_NAME, WebHandler.class), context);
 
 		List<WebFilter> webFilters = context
 				.getBeanProvider(WebFilter.class)
 				.orderedStream()
-				.collect(Collectors.toList());
+				.toList();
 		builder.filters(filters -> filters.addAll(webFilters));
+
 		List<WebExceptionHandler> exceptionHandlers = context
 				.getBeanProvider(WebExceptionHandler.class)
 				.orderedStream()
-				.collect(Collectors.toList());
+				.toList();
 		builder.exceptionHandlers(handlers -> handlers.addAll(exceptionHandlers));
+
+		context.getBeanProvider(HttpHandlerDecoratorFactory.class)
+				.orderedStream()
+				.forEach(builder::httpHandlerDecorator);
+
+		context.getBeanProvider(ObservationRegistry.class).ifUnique(builder::observationRegistry);
+		context.getBeanProvider(ServerRequestObservationConvention.class).ifAvailable(builder::observationConvention);
 
 		try {
 			builder.sessionManager(
@@ -215,7 +243,6 @@ public final class WebHttpHandlerBuilder {
 	public WebHttpHandlerBuilder filter(WebFilter... filters) {
 		if (!ObjectUtils.isEmpty(filters)) {
 			this.filters.addAll(Arrays.asList(filters));
-			updateFilters();
 		}
 		return this;
 	}
@@ -226,26 +253,7 @@ public final class WebHttpHandlerBuilder {
 	 */
 	public WebHttpHandlerBuilder filters(Consumer<List<WebFilter>> consumer) {
 		consumer.accept(this.filters);
-		updateFilters();
 		return this;
-	}
-
-	private void updateFilters() {
-		if (this.filters.isEmpty()) {
-			return;
-		}
-
-		List<WebFilter> filtersToUse = this.filters.stream()
-				.peek(filter -> {
-					if (filter instanceof ForwardedHeaderTransformer && this.forwardedHeaderTransformer == null) {
-						this.forwardedHeaderTransformer = (ForwardedHeaderTransformer) filter;
-					}
-				})
-				.filter(filter -> !(filter instanceof ForwardedHeaderTransformer))
-				.collect(Collectors.toList());
-
-		this.filters.clear();
-		this.filters.addAll(filtersToUse);
 	}
 
 	/**
@@ -349,6 +357,28 @@ public final class WebHttpHandlerBuilder {
 	}
 
 	/**
+	 * Configure an {@link ObservationRegistry} for recording server exchange observations.
+	 * By default, a {@link ObservationRegistry#NOOP no-op} registry will be configured.
+	 * @param observationRegistry the observation registry
+	 * @since 6.1
+	 */
+	public WebHttpHandlerBuilder observationRegistry(ObservationRegistry observationRegistry) {
+		this.observationRegistry = observationRegistry;
+		return this;
+	}
+
+	/**
+	 * Configure a {@link ServerRequestObservationConvention} to use for server observations.
+	 * By default, a {@link DefaultServerRequestObservationConvention} will be used.
+	 * @param observationConvention the convention to use for all recorded observations
+	 * @since 6.1
+	 */
+	public WebHttpHandlerBuilder observationConvention(ServerRequestObservationConvention observationConvention) {
+		this.observationConvention = observationConvention;
+		return this;
+	}
+
+	/**
 	 * Configure a {@link Function} to decorate the {@link HttpHandler} returned
 	 * by this builder which effectively wraps the entire
 	 * {@link WebExceptionHandler} - {@link WebFilter} - {@link WebHandler}
@@ -378,7 +408,7 @@ public final class WebHttpHandlerBuilder {
 	 */
 	public HttpHandler build() {
 		WebHandler decorated = new FilteringWebHandler(this.webHandler, this.filters);
-		decorated = new ExceptionHandlingWebHandler(decorated,  this.exceptionHandlers);
+		decorated = new ExceptionHandlingWebHandler(decorated, this.exceptionHandlers);
 
 		HttpWebHandlerAdapter adapted = new HttpWebHandlerAdapter(decorated);
 		if (this.sessionManager != null) {
@@ -392,6 +422,12 @@ public final class WebHttpHandlerBuilder {
 		}
 		if (this.forwardedHeaderTransformer != null) {
 			adapted.setForwardedHeaderTransformer(this.forwardedHeaderTransformer);
+		}
+		if (this.observationRegistry != null) {
+			adapted.setObservationRegistry(this.observationRegistry);
+		}
+		if (this.observationConvention != null) {
+			adapted.setObservationConvention(this.observationConvention);
 		}
 		if (this.applicationContext != null) {
 			adapted.setApplicationContext(this.applicationContext);
@@ -408,6 +444,23 @@ public final class WebHttpHandlerBuilder {
 	@Override
 	public WebHttpHandlerBuilder clone() {
 		return new WebHttpHandlerBuilder(this);
+	}
+
+
+	/**
+	 * {@code BlockHoundIntegration} for spring-web classes.
+	 * @since 5.3.6
+	 */
+	public static class SpringWebBlockHoundIntegration implements BlockHoundIntegration {
+
+		@Override
+		public void applyTo(BlockHound.Builder builder) {
+
+			// Avoid hard references potentially anywhere in spring-web (no need for structural dependency)
+
+			builder.allowBlockingCallsInside("org.springframework.http.MediaTypeFactory", "<clinit>");
+			builder.allowBlockingCallsInside("org.springframework.web.util.HtmlUtils", "<clinit>");
+		}
 	}
 
 }

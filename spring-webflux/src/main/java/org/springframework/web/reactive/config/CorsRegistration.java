@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2020 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ public class CorsRegistration {
 
 	private final String pathPattern;
 
-	private final CorsConfiguration config;
+	private CorsConfiguration config;
 
 
 	public CorsRegistration(String pathPattern) {
@@ -46,10 +46,14 @@ public class CorsRegistration {
 
 
 	/**
-	 * A list of origins for which cross-origin requests are allowed. Please,
-	 * see {@link CorsConfiguration#setAllowedOrigins(List)} for details.
-	 * <p>By default all origins are allowed unless {@code originPatterns} is
-	 * also set in which case {@code originPatterns} is used instead.
+	 * Set the origins for which cross-origin requests are allowed from a browser.
+	 * Please, refer to {@link CorsConfiguration#setAllowedOrigins(List)} for
+	 * format details and other considerations.
+	 *
+	 * <p>By default, all origins are allowed, but if
+	 * {@link #allowedOriginPatterns(String...) allowedOriginPatterns} is also
+	 * set, then that takes precedence.
+	 * @see #allowedOriginPatterns(String...)
 	 */
 	public CorsRegistration allowedOrigins(String... origins) {
 		this.config.setAllowedOrigins(Arrays.asList(origins));
@@ -57,9 +61,11 @@ public class CorsRegistration {
 	}
 
 	/**
-	 * Alternative to {@link #allowCredentials} that supports origins declared
-	 * via wildcard patterns. Please, see
-	 * @link CorsConfiguration#setAllowedOriginPatterns(List)} for details.
+	 * Alternative to {@link #allowedOrigins(String...)} that supports more
+	 * flexible patterns for specifying the origins for which cross-origin
+	 * requests are allowed from a browser. Please, refer to
+	 * {@link CorsConfiguration#setAllowedOriginPatterns(List)} for format
+	 * details and other considerations.
 	 * <p>By default this is not set.
 	 * @since 5.3
 	 */
@@ -70,9 +76,11 @@ public class CorsRegistration {
 
 	/**
 	 * Set the HTTP methods to allow, e.g. {@code "GET"}, {@code "POST"}, etc.
-	 * <p>The special value {@code "*"} allows all methods.
-	 * <p>By default "simple" methods {@code GET}, {@code HEAD}, and {@code POST}
+	 * The special value {@code "*"} allows all methods. By default,
+	 * "simple" methods {@code GET}, {@code HEAD}, and {@code POST}
 	 * are allowed.
+	 * <p>Please, see {@link CorsConfiguration#setAllowedMethods(List)} for
+	 * details.
 	 */
 	public CorsRegistration allowedMethods(String... methods) {
 		this.config.setAllowedMethods(Arrays.asList(methods));
@@ -81,11 +89,10 @@ public class CorsRegistration {
 
 	/**
 	 * Set the list of headers that a pre-flight request can list as allowed
-	 * for use during an actual request.
-	 * <p>The special value {@code "*"} may be used to allow all headers.
-	 * <p>A header name is not required to be listed if it is one of:
-	 * {@code Cache-Control}, {@code Content-Language}, {@code Expires},
-	 * {@code Last-Modified}, or {@code Pragma} as per the CORS spec.
+	 * for use during an actual request. The special value {@code "*"}
+	 * may be used to allow all headers.
+	 * <p>Please, see {@link CorsConfiguration#setAllowedHeaders(List)} for
+	 * details.
 	 * <p>By default all headers are allowed.
 	 */
 	public CorsRegistration allowedHeaders(String... headers) {
@@ -94,12 +101,11 @@ public class CorsRegistration {
 	}
 
 	/**
-	 * Set the list of response headers other than "simple" headers, i.e.
-	 * {@code Cache-Control}, {@code Content-Language}, {@code Content-Type},
-	 * {@code Expires}, {@code Last-Modified}, or {@code Pragma}, that an
-	 * actual response might have and can be exposed.
-	 * <p>The special value {@code "*"} allows all headers to be exposed for
-	 * non-credentialed requests.
+	 * Set the list of response headers that an actual response might have and
+	 * can be exposed. The special value {@code "*"} allows all headers to be
+	 * exposed.
+	 * <p>Please, see {@link CorsConfiguration#setExposedHeaders(List)} for
+	 * details.
 	 * <p>By default this is not set.
 	 */
 	public CorsRegistration exposedHeaders(String... headers) {
@@ -126,6 +132,17 @@ public class CorsRegistration {
 	}
 
 	/**
+	 * Whether private network access is supported.
+	 * <p>Please, see {@link CorsConfiguration#setAllowPrivateNetwork(Boolean)} for details.
+	 * <p>By default this is not set (i.e. private network access is not supported).
+	 * @since 5.3.32
+	 */
+	public CorsRegistration allowPrivateNetwork(boolean allowPrivateNetwork) {
+		this.config.setAllowPrivateNetwork(allowPrivateNetwork);
+		return this;
+	}
+
+	/**
 	 * Configure how long in seconds the response from a pre-flight request
 	 * can be cached by clients.
 	 * <p>By default this is set to 1800 seconds (30 minutes).
@@ -143,7 +160,7 @@ public class CorsRegistration {
 	 * @since 5.3
 	 */
 	public CorsRegistration combine(CorsConfiguration other) {
-		this.config.combine(other);
+		this.config = this.config.combine(other);
 		return this;
 	}
 

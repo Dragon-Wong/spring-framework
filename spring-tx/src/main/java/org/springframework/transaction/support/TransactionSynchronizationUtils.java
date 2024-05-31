@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -59,14 +59,13 @@ public abstract class TransactionSynchronizationUtils {
 	 * the given handle as-is.
 	 * @since 5.3.4
 	 * @see InfrastructureProxy#getWrappedObject()
-	 * @see ScopedProxyUnwrapper#unwrapIfNecessary(Object)
 	 */
 	public static Object unwrapResourceIfNecessary(Object resource) {
 		Assert.notNull(resource, "Resource must not be null");
 		Object resourceRef = resource;
 		// unwrap infrastructure proxy
-		if (resourceRef instanceof InfrastructureProxy) {
-			resourceRef = ((InfrastructureProxy) resourceRef).getWrappedObject();
+		if (resourceRef instanceof InfrastructureProxy infrastructureProxy) {
+			resourceRef = infrastructureProxy.getWrappedObject();
 		}
 		if (aopAvailable) {
 			// now unwrap scoped proxy
@@ -82,8 +81,38 @@ public abstract class TransactionSynchronizationUtils {
 	 * @see TransactionSynchronization#flush()
 	 */
 	public static void triggerFlush() {
-		for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
-			synchronization.flush();
+		if (TransactionSynchronizationManager.isSynchronizationActive()) {
+			for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
+				synchronization.flush();
+			}
+		}
+	}
+
+	/**
+	 * Trigger {@code flush} callbacks on all currently registered synchronizations.
+	 * @throws RuntimeException if thrown by a {@code savepoint} callback
+	 * @since 6.2
+	 * @see TransactionSynchronization#savepoint
+	 */
+	static void triggerSavepoint(Object savepoint) {
+		if (TransactionSynchronizationManager.isSynchronizationActive()) {
+			for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
+				synchronization.savepoint(savepoint);
+			}
+		}
+	}
+
+	/**
+	 * Trigger {@code flush} callbacks on all currently registered synchronizations.
+	 * @throws RuntimeException if thrown by a {@code savepointRollback} callback
+	 * @since 6.2
+	 * @see TransactionSynchronization#savepointRollback
+	 */
+	static void triggerSavepointRollback(Object savepoint) {
+		if (TransactionSynchronizationManager.isSynchronizationActive()) {
+			for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
+				synchronization.savepointRollback(savepoint);
+			}
 		}
 	}
 
@@ -109,7 +138,7 @@ public abstract class TransactionSynchronizationUtils {
 				synchronization.beforeCompletion();
 			}
 			catch (Throwable ex) {
-				logger.debug("TransactionSynchronization.beforeCompletion threw exception", ex);
+				logger.error("TransactionSynchronization.beforeCompletion threw exception", ex);
 			}
 		}
 	}
@@ -173,7 +202,7 @@ public abstract class TransactionSynchronizationUtils {
 					synchronization.afterCompletion(completionStatus);
 				}
 				catch (Throwable ex) {
-					logger.debug("TransactionSynchronization.afterCompletion threw exception", ex);
+					logger.error("TransactionSynchronization.afterCompletion threw exception", ex);
 				}
 			}
 		}
@@ -186,8 +215,8 @@ public abstract class TransactionSynchronizationUtils {
 	private static class ScopedProxyUnwrapper {
 
 		public static Object unwrapIfNecessary(Object resource) {
-			if (resource instanceof ScopedObject) {
-				return ((ScopedObject) resource).getTargetObject();
+			if (resource instanceof ScopedObject scopedObject) {
+				return scopedObject.getTargetObject();
 			}
 			else {
 				return resource;

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2020 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,11 +32,13 @@ import org.springframework.lang.Nullable;
  * allows you to prioritize that listener amongst other listeners running before or after
  * transaction completion.
  *
- * <p><b>NOTE: Transactional event listeners only work with thread-bound transactions
- * managed by {@link org.springframework.transaction.PlatformTransactionManager}.</b>
- * A reactive transaction managed by {@link org.springframework.transaction.ReactiveTransactionManager}
- * uses the Reactor context instead of thread-local attributes, so from the perspective of
- * an event listener, there is no compatible active transaction that it can participate in.
+ * <p>As of 6.1, transactional event listeners can work with thread-bound transactions managed
+ * by a {@link org.springframework.transaction.PlatformTransactionManager} as well as reactive
+ * transactions managed by a {@link org.springframework.transaction.ReactiveTransactionManager}.
+ * For the former, listeners are guaranteed to see the current thread-bound transaction.
+ * Since the latter uses the Reactor context instead of thread-local variables, the transaction
+ * context needs to be included in the published event instance as the event source:
+ * see {@link org.springframework.transaction.reactive.TransactionalEventPublisher}.
  *
  * @author Juergen Hoeller
  * @author Oliver Drotbohm
@@ -60,11 +62,13 @@ public interface TransactionalApplicationListener<E extends ApplicationEvent>
 	}
 
 	/**
-	 * Return the {@link TransactionPhase} in which the listener will be invoked.
-	 * <p>The default phase is {@link TransactionPhase#AFTER_COMMIT}.
+	 * Transaction-synchronized listeners do not support asynchronous execution,
+	 * only their target listener ({@link #processEvent}) potentially does.
+	 * @since 6.1
 	 */
-	default TransactionPhase getTransactionPhase() {
-		return TransactionPhase.AFTER_COMMIT;
+	@Override
+	default boolean supportsAsyncExecution() {
+		return false;
 	}
 
 	/**
@@ -72,10 +76,20 @@ public interface TransactionalApplicationListener<E extends ApplicationEvent>
 	 * <p>It might be necessary for specific completion callback implementations
 	 * to provide a specific id, whereas for other scenarios an empty String
 	 * (as the common default value) is acceptable as well.
+	 * @see org.springframework.context.event.SmartApplicationListener#getListenerId()
+	 * @see TransactionalEventListener#id
 	 * @see #addCallback
 	 */
 	default String getListenerId() {
 		return "";
+	}
+
+	/**
+	 * Return the {@link TransactionPhase} in which the listener will be invoked.
+	 * <p>The default phase is {@link TransactionPhase#AFTER_COMMIT}.
+	 */
+	default TransactionPhase getTransactionPhase() {
+		return TransactionPhase.AFTER_COMMIT;
 	}
 
 	/**

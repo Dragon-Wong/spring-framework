@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2020 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Proxy;
@@ -59,13 +58,6 @@ final class SerializableTypeWrapper {
 	private static final Class<?>[] SUPPORTED_SERIALIZABLE_TYPES = {
 			GenericArrayType.class, ParameterizedType.class, TypeVariable.class, WildcardType.class};
 
-	/**
-	 * Whether this environment lives within a native image.
-	 * Exposed as a private static field rather than in a {@code NativeImageDetector.inNativeImage()} static method due to https://github.com/oracle/graal/issues/2594.
-	 * @see <a href="https://github.com/oracle/graal/blob/master/sdk/src/org.graalvm.nativeimage/src/org/graalvm/nativeimage/ImageInfo.java">ImageInfo.java</a>
-	 */
-	private static final boolean IN_NATIVE_IMAGE = (System.getProperty("org.graalvm.nativeimage.imagecode") != null);
-
 	static final ConcurrentReferenceHashMap<Type, Type> cache = new ConcurrentReferenceHashMap<>(256);
 
 
@@ -98,8 +90,8 @@ final class SerializableTypeWrapper {
 	@SuppressWarnings("unchecked")
 	public static <T extends Type> T unwrap(T type) {
 		Type unwrapped = null;
-		if (type instanceof SerializableTypeProxy) {
-			unwrapped = ((SerializableTypeProxy) type).getTypeProvider().getType();
+		if (type instanceof SerializableTypeProxy proxy) {
+			unwrapped = proxy.getTypeProvider().getType();
 		}
 		return (unwrapped != null ? (T) unwrapped : type);
 	}
@@ -116,7 +108,7 @@ final class SerializableTypeWrapper {
 			// No serializable type wrapping necessary (e.g. for java.lang.Class)
 			return providedType;
 		}
-		if (IN_NATIVE_IMAGE || !Serializable.class.isAssignableFrom(Class.class)) {
+		if (NativeDetector.inNativeImage() || !Serializable.class.isAssignableFrom(Class.class)) {
 			// Let's skip any wrapping attempts if types are generally not serializable in
 			// the current runtime environment (even java.lang.Class itself, e.g. on GraalVM native images)
 			return providedType;
@@ -167,7 +159,7 @@ final class SerializableTypeWrapper {
 
 		/**
 		 * Return the source of the type, or {@code null} if not known.
-		 * <p>The default implementations returns {@code null}.
+		 * <p>The default implementation returns {@code null}.
 		 */
 		@Nullable
 		default Object getSource() {
@@ -194,36 +186,43 @@ final class SerializableTypeWrapper {
 		@Nullable
 		public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
 			switch (method.getName()) {
-				case "equals":
+				case "equals" -> {
 					Object other = args[0];
 					// Unwrap proxies for speed
-					if (other instanceof Type) {
-						other = unwrap((Type) other);
+					if (other instanceof Type otherType) {
+						other = unwrap(otherType);
 					}
 					return ObjectUtils.nullSafeEquals(this.provider.getType(), other);
-				case "hashCode":
+				}
+				case "hashCode" -> {
 					return ObjectUtils.nullSafeHashCode(this.provider.getType());
-				case "getTypeProvider":
+				}
+				case "getTypeProvider" -> {
 					return this.provider;
+				}
 			}
 
 			if (Type.class == method.getReturnType() && ObjectUtils.isEmpty(args)) {
 				return forTypeProvider(new MethodInvokeTypeProvider(this.provider, method, -1));
 			}
 			else if (Type[].class == method.getReturnType() && ObjectUtils.isEmpty(args)) {
-				Type[] result = new Type[((Type[]) method.invoke(this.provider.getType())).length];
+				Object returnValue = ReflectionUtils.invokeMethod(method, this.provider.getType());
+				if (returnValue == null) {
+					return null;
+				}
+				Type[] result = new Type[((Type[]) returnValue).length];
 				for (int i = 0; i < result.length; i++) {
 					result[i] = forTypeProvider(new MethodInvokeTypeProvider(this.provider, method, i));
 				}
 				return result;
 			}
 
-			try {
-				return method.invoke(this.provider.getType(), args);
+			Type type = this.provider.getType();
+			if (type instanceof TypeVariable<?> tv && method.getName().equals("getName")) {
+				// Avoid reflection for common comparison of type variables
+				return tv.getName();
 			}
-			catch (InvocationTargetException ex) {
-				throw ex.getTargetException();
-			}
+			return ReflectionUtils.invokeMethod(method, type, args);
 		}
 	}
 
@@ -359,7 +358,7 @@ final class SerializableTypeWrapper {
 				// Cache the result for further calls to getType()
 				this.result = result;
 			}
-			return (result instanceof Type[] ? ((Type[]) result)[this.index] : (Type) result);
+			return (result instanceof Type[] results ? results[this.index] : (Type) result);
 		}
 
 		@Override

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,28 +16,34 @@
 
 package org.springframework.test.context.junit.jupiter.event;
 
-import java.lang.management.ManagementFactory;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.assertj.core.api.InstanceOfAssertFactories;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
-import org.junit.jupiter.api.parallel.Execution;
-import org.junit.jupiter.api.parallel.ExecutionMode;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.platform.engine.TestExecutionResult;
+import org.junit.platform.testkit.engine.EngineExecutionResults;
 import org.junit.platform.testkit.engine.EngineTestKit;
+import org.junit.platform.testkit.engine.Events;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
+import org.springframework.context.PayloadApplicationEvent;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.ApplicationEventsHolder;
 import org.springframework.test.context.event.RecordApplicationEvents;
+import org.springframework.test.context.event.TestContextEvent;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -48,41 +54,78 @@ import static org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
  * in conjunction with JUnit Jupiter.
  *
  * @author Sam Brannen
+ * @author Simon Baslé
  * @since 5.3.3
  */
 class ParallelApplicationEventsIntegrationTests {
 
 	private static final Set<String> payloads = ConcurrentHashMap.newKeySet();
 
+	@Test
+	void rejectTestsInParallelWithInstancePerClassAndRecordApplicationEvents() {
+		Class<?> testClass = TestInstancePerClassTestCase.class;
 
-	@ParameterizedTest
-	@ValueSource(classes = {TestInstancePerMethodTestCase.class, TestInstancePerClassTestCase.class})
-	void executeTestsInParallel(Class<?> testClass) {
-		EngineTestKit.engine("junit-jupiter")//
+		EngineExecutionResults results = EngineTestKit.engine("junit-jupiter")//
+				.selectors(selectClass(testClass))//
+				.configurationParameter("junit.jupiter.execution.parallel.enabled", "true")//
+				.configurationParameter("junit.jupiter.execution.parallel.mode.default", "concurrent")//
+				.configurationParameter("junit.jupiter.execution.parallel.config.dynamic.factor", "10")//
+				.execute();
+
+		// extract the messages from failed TextExecutionResults
+		assertThat(results.containerEvents().failed()//
+					.map(e -> e.getRequiredPayload(TestExecutionResult.class).getThrowable().get().getMessage()))//
+				.singleElement(InstanceOfAssertFactories.STRING)
+				.isEqualTo("""
+					Test classes or @Nested test classes that @RecordApplicationEvents must not be run \
+					in parallel with the @TestInstance(PER_CLASS) lifecycle mode. Configure either \
+					@Execution(SAME_THREAD) or @TestInstance(PER_METHOD) semantics, or disable parallel \
+					execution altogether. Note that when recording events in parallel, one might see events \
+					published by other tests since the application context may be shared.""");
+	}
+
+	@Test
+	void executeTestsInParallelWithInstancePerMethod() {
+		Class<?> testClass = TestInstancePerMethodTestCase.class;
+		Events testEvents = EngineTestKit.engine("junit-jupiter")//
 				.selectors(selectClass(testClass))//
 				.configurationParameter("junit.jupiter.execution.parallel.enabled", "true")//
 				.configurationParameter("junit.jupiter.execution.parallel.config.dynamic.factor", "10")//
 				.execute()//
-				.testEvents()//
-				.assertStatistics(stats -> stats.started(10).succeeded(10).failed(0));
+				.testEvents();
+		// list failed events in case of test errors to get a sense of which tests failed
+		Events failedTests = testEvents.failed();
+		if (failedTests.count() > 0) {
+			failedTests.debug();
+		}
+		testEvents.assertStatistics(stats -> stats.started(13).succeeded(13).failed(0));
 
 		Set<String> testNames = payloads.stream()//
 				.map(payload -> payload.substring(0, payload.indexOf("-")))//
-				.collect(Collectors.toSet());
-		Set<String> threadNames = payloads.stream()//
-				.map(payload -> payload.substring(payload.indexOf("-")))//
 				.collect(Collectors.toSet());
 
 		assertThat(payloads).hasSize(10);
 		assertThat(testNames).hasSize(10);
 
-		// Skip the following assertion entirely if the thread count is too low.
-		if (ManagementFactory.getThreadMXBean().getThreadCount() >= 2) {
+		// The following assertion is currently commented out, since it fails
+		// regularly on the CI server due to only 1 thread being used for
+		// parallel test execution on the CI server.
+		/*
+		Set<String> threadNames = payloads.stream()//
+				.map(payload -> payload.substring(payload.indexOf("-")))//
+				.collect(Collectors.toSet());
+		int availableProcessors = Runtime.getRuntime().availableProcessors();
+		// Skip the following assertion entirely if too few processors are available
+		// to the current JVM.
+		if (availableProcessors >= 6) {
 			// There are probably 10 different thread names on a developer's machine,
 			// but we really just want to assert that at least two different threads
 			// were used, since the CI server often has fewer threads available.
-			assertThat(threadNames).hasSizeGreaterThanOrEqualTo(2);
+			assertThat(threadNames)
+				.as("number of threads used with " + availableProcessors + " available processors")
+				.hasSizeGreaterThanOrEqualTo(2);
 		}
+		*/
 	}
 
 
@@ -94,7 +137,6 @@ class ParallelApplicationEventsIntegrationTests {
 
 	@SpringJUnitConfig
 	@RecordApplicationEvents
-	@Execution(ExecutionMode.CONCURRENT)
 	@TestInstance(Lifecycle.PER_METHOD)
 	static class TestInstancePerMethodTestCase {
 
@@ -152,6 +194,39 @@ class ParallelApplicationEventsIntegrationTests {
 		@Test
 		void test10(ApplicationEvents events, TestInfo testInfo) {
 			assertTestExpectations(events, testInfo);
+		}
+
+		@Test
+		void compareToApplicationEventsHolder(ApplicationEvents applicationEvents) {
+			ApplicationEvents fromThreadHolder = ApplicationEventsHolder.getRequiredApplicationEvents();
+			assertThat(fromThreadHolder.stream())
+					.hasSameElementsAs(this.events.stream().toList())
+					.hasSameElementsAs(applicationEvents.stream().toList());
+		}
+
+		@Test
+		void asyncPublication(ApplicationEvents events) throws InterruptedException {
+			ExecutorService executorService = Executors.newSingleThreadExecutor();
+			executorService.execute(() -> this.context.publishEvent("asyncPublication"));
+			executorService.shutdown();
+			executorService.awaitTermination(10, TimeUnit.SECONDS);
+
+			assertThat(events.stream().filter(e -> !(e instanceof TestContextEvent))
+					.map(e -> (e instanceof PayloadApplicationEvent<?> pae ? pae.getPayload().toString() : e.toString())))
+					.containsExactly("asyncPublication");
+		}
+
+		@Test
+		void asyncConsumption() {
+			this.context.publishEvent("asyncConsumption");
+
+			Awaitility.await().atMost(5, TimeUnit.SECONDS).untilAsserted(() ->//
+					assertThat(ApplicationEventsHolder//
+							.getRequiredApplicationEvents()//
+							.stream()//
+							.filter(e -> !(e instanceof TestContextEvent))//
+							.map(e -> (e instanceof PayloadApplicationEvent<?> pae ? pae.getPayload().toString() : e.toString()))//
+					).containsExactly("asyncConsumption"));
 		}
 
 		private void assertTestExpectations(ApplicationEvents events, TestInfo testInfo) {
